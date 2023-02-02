@@ -1,0 +1,78 @@
+#
+# conf.py
+# 
+# Copyright The PySPIS Contributors.
+# 
+# This file is part of PySPIS library.
+# 
+# PySPIS library is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# PySPIS library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Lesser General Public License for more details.
+# 
+# You should have received a copy of the GNU Lesser General Public License
+# along with PySPIS library. If not, see <http://www.gnu.org/licenses/>.
+# 
+#
+
+
+# -- Path setup --------------------------------------------------------------
+
+# If extensions (or modules to document with autodoc) are in another directory,
+# add these directories to sys.path here. If the directory is relative to the
+# documentation root, use os.path.abspath to make it absolute, like shown here.
+
+import os
+import sys
+
+import sphinx_rtd_theme
+
+sys.path.insert(0, os.path.abspath('../'))  # Source code dir relative to this file
+
+# -- Project information -----------------------------------------------------
+
+project = 'pyspis'
+copyright = 'Copyright The PySPIS Contributors'
+author = 'Edemar Morsch Filho, Laio Oriel Seman, Gabriel Mariano Marcelino'
+
+# The full version, including alpha/beta/rc tags
+release = "0.0.0"
+
+
+# -- General configuration ---------------------------------------------------
+
+# Add any Sphinx extension module names here, as strings. They can be
+# extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
+# ones.
+extensions = [
+    'sphinx_rtd_theme',
+    'sphinx.ext.autodoc',       # Core library for html generation from docstrings
+]
+
+# Add any paths that contain templates here, relative to this directory.
+templates_path = ['_templates']
+
+# The suffix(es) of source filenames.
+# You can specify multiple suffix as a list of string:
+source_suffix = ['.rst']
+
+# The master toctree document.
+master_doc = 'index'
+
+# List of patterns, relative to source directory, that match files and
+# directories to ignore when looking for source files.
+# This pattern also affects html_static_path and html_extra_path.
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+
+
+# -- Options for HTML output -------------------------------------------------
+
+# The theme to use for HTML and HTML Help pages.  See the documentation for
+# a list of builtin themes.
+#
+html_theme = 'sphinx_rtd_theme'
