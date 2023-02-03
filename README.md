@@ -19,7 +19,8 @@ Python library of the Satellite Power Input Simulator (SPIS).
 
 ## Dependencies
 
-* None
+* [numpy](https://pypi.org/project/numpy/) - v1.24.1
+* [matplotlib](https://pypi.org/project/matplotlib/) - v3.6.3
 
 ## Installing
 
