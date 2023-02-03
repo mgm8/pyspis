@@ -1,5 +1,7 @@
 import numpy as np
 
+from kepler_e import *
+
 def inputOrbit(mu, rad):
     data = {"tle": [0, 90, 0, 0.000001, 0, 15.21981]}
 

@@ -1,5 +1,7 @@
 import math
 
+from j0 import *
+
 def solar_position(year, month, day):
     # Compute Julian day
     jd = J0(year, month, day)
@@ -35,6 +37,6 @@ def solar_position(year, month, day):
     rS = (1.00014 - 0.01671 * math.cos(math.radians(M)) - 0.000140 * math.cos(2 * math.radians(M))) * AU
 
     # Geocentric position vector (km):
-    r_S = rS * u
+    r_S = [i * rS for i in u]
 
     return r_S
