@@ -61,5 +61,5 @@ setuptools.setup(
         ],
     download_url                    = "https://github.com/mgm8/pyspis/releases",
     packages                        = setuptools.find_packages(),
-    install_requires                = [],
+    install_requires                = ['numpy==1.24.1','matplotlib==3.6.3'],
 )
