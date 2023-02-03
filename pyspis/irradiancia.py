@@ -41,6 +41,9 @@ time = np.array([])
 Power = np.zeros((0, 6))
 Power_total = np.array([])
 
+pos = np.empty((1,3))
+P = list()
+
 # Solver
 while t0 <= T:
     it = it + 1  # iteration
@@ -50,8 +53,8 @@ while t0 <= T:
     TA = ta_from_time(time[it - 1], e, T, TA0)
 
     # position of the satellite - Equation 1, 2, 3
-    state_r, Q = position(h, e, RA, i, w, TA, it, mu)
-    pos = np.append(pos, state_r)
+    state_r, Q = sv_from_coe(h, e, RA, i, w, TA, it, mu)
+    pos = np.vstack([pos, state_r])
 
     # eclipse of the earth - Equation 5
     csi = eclipse(pos, it, r_sun, RE)
@@ -60,11 +63,11 @@ while t0 <= T:
     N_X = attitude(h, e, RA, i, w, TA, it, Q, T, r_sun, time[it - 1])
 
     # view factor - Equation 10
-    F = projection(N_X, pos, r_sun, it, RE)
+    F = irradiance_field(N_X, pos, r_sun, it, RE)
 
     # power generation - Equation 11
     P_k = eta * G * A * F * csi
-    P = np.append(P, P_k)
+    P.append(P_k)
 
     t0 = time[it - 1]  # used in the loop
 
@@ -76,4 +79,7 @@ Power_total = np.sum(Power, axis=1)
 fig, ax = plt.subplots()
 ax.plot(time, Power[:, 0], time, Power[:, 1], time, Power[:, 2], time, Power[:, 3], time, Power[:, 4], time, Power[:, 5], time, Power_total)
 ax.legend(['X_{+}', 'X_{-}', 'Y_{+}', 'Y_{-}', 'Z_{+}', 'Z_{-}', 'Total'])
-ax.set_x
+ax.set_xlabel("Time [s]")
+ax.set_ylabel("Power [W]")
+#plt.savefig("test.png")
+plt.show()
