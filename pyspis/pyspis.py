@@ -38,7 +38,8 @@ class SPIS:
         :return: None.
         :rtype: None
         """
-        pass
+        # Conversion factors
+        self._rad = np.pi / 180 # Degrees to radians
 
     def __str__(self):
         """
@@ -70,9 +71,69 @@ class SPIS:
         :return: Generated power in Watts.
         :rtype: float
         """
-        pass
+        # Initialization
+        it = 0  # counter
+        t0 = 0  # initial time [s]
 
-    def _attitude(self, h, e, ra, i, w, ta, it, q, t, r_sun, t):
+        # Constants:
+        mu = 398600  # Gravitational parameter (km^3/s^2)
+        RE = 6378  # Earth radius (km)
+
+        # Read TLE & further arguments (angles in degrees)
+        h, e, RA, i, w, TA0, year, month, day, T = self._input_orbit(mu, self._rad)
+
+        # Compute the position of the sun r_sun at a given day
+        r_sun = self._solar_position(year, month, day)
+
+        # Initialize arrays for storage
+        time = np.array([])
+        Power = np.zeros((0, 6))
+        Power_total = np.array([])
+
+        pos = np.empty((1,3))
+        P = list()
+
+        # Solver
+        while t0 <= T:
+            it = it + 1  # iteration
+            time = np.append(time, (it - 1) * ts)  # time [s]
+
+            # transformation from time [s] to true anomaly [rad]
+            TA = self._ta_from_time(time[it - 1], e, T, TA0)
+
+            # position of the satellite - Equation 1, 2, 3
+            state_r, Q = self._sv_from_coe(h, e, RA, i, w, TA, it, mu)
+            pos = np.vstack([pos, state_r])
+
+            # eclipse of the earth - Equation 5
+            csi = self._eclipse(pos, it, r_sun, RE)
+
+            # attitude of the satellite - Equation 6, 7, 8, 9
+            N_X = self._attitude(h, e, RA, i, w, TA, it, Q, T, r_sun, time[it - 1])
+
+            # view factor - Equation 10
+            F = self._irradiance_field(N_X, pos, r_sun, it, RE)
+
+            # power generation - Equation 11
+            P_k = n * G * A * F * csi
+            P.append(P_k)
+
+            t0 = time[it - 1]  # used in the loop
+
+        # Post processing
+        Power = np.array(P).reshape(it, 6)
+        Power_total = np.sum(Power, axis=1)
+
+        # Plot
+        fig, ax = plt.subplots()
+        ax.plot(time, Power[:, 0], time, Power[:, 1], time, Power[:, 2], time, Power[:, 3], time, Power[:, 4], time, Power[:, 5], time, Power_total)
+        ax.legend(['X_{+}', 'X_{-}', 'Y_{+}', 'Y_{-}', 'Z_{+}', 'Z_{-}', 'Total'])
+        ax.set_xlabel("Time [s]")
+        ax.set_ylabel("Power [W]")
+        #plt.savefig("test.png")
+        plt.show()
+
+    def _attitude(self, h, e, RA, i, w, TA, it, Q, T, r_sun, t):
         """
 
         :param h:
@@ -111,7 +172,29 @@ class SPIS:
         :return: 
         :rtype: TODO
         """
-        pass
+        # Equation 6
+        n = np.array([[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]])
+
+        Rspin1 = np.array([[np.cos(TA), np.sin(TA), 0], [-np.sin(TA), np.cos(TA), 0], [0, 0, 1]])
+        th = -0 * 1 * (2 * np.pi * t) / T # theta*
+
+        Rspin2 = np.array([[1, 0, 0], [0, np.cos(th), np.sin(th)], [0, -np.sin(th), np.cos(th)]])
+        Rspin3 = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+
+        # Equation 8
+        M = np.dot(Rspin3, np.dot(Rspin2, Rspin1)).T
+
+        # Equation 7
+        N_x = np.zeros((6, 3))
+        for j in range(6):
+            N_x[j, :] = np.dot(M, n[j, :])
+
+        # Equation 9
+        N_X = np.zeros((6, 3))
+        for j in range(6):
+            N_X[j, :] = np.dot(Q, N_x[j, :])
+
+        return N_X
 
     def _eclipse(self, pos, it, r_sun, RE):
         """
@@ -131,7 +214,24 @@ class SPIS:
         :return: .
         :rtype:
         """
-        pass
+        rsat = np.linalg.norm(pos[it])
+        rsun = np.linalg.norm(r_sun)
+
+        # Angle between sun and satellite position vector:
+        theta = np.arccos(np.dot(pos[it], r_sun) / rsat / rsun) * 180 / np.pi
+
+        # Angle between the satellite position vector and the radial to the point of tangency with the earth of a line from the satellite:
+        theta_sat = np.arccos(RE / rsat) * 180 / np.pi
+
+        # Angle between the sun position vector and the radial to the point of tangency with the earth of a line from the sun:
+        theta_sun = 90
+
+        if theta_sat + theta_sun <= theta:
+            csi = 0 # eclipse
+        else:
+            csi = 1 # no eclipse
+
+        return csi
 
     def _input_orbit(self, mu, rad):
         """
@@ -145,7 +245,26 @@ class SPIS:
         :return: .
         :rtype: None
         """
-        pass
+        data = {"tle": [0, 90, 0, 0.000001, 0, 15.21981]}
+
+        RA0 = data["tle"][0] * rad
+        i0 = data["tle"][1] * rad
+        w0 = data["tle"][2] * rad
+        e0 = data["tle"][3]
+        Ma0 = data["tle"][4] * rad
+        Ea0 = self._kepler_e(e0, Ma0)
+        TA0 = 2 * np.arctan((((1 + e0) / (1 - e0))**0.5) * np.tan(Ea0 / 2))
+        Mm0 = data["tle"][5] / (24 * 3600)
+        a0 = (mu**(1 / 3)) / ((2 * np.pi * Mm0)**(2 / 3))
+        h0 = (a0 * mu * (1 - e0**2))**0.5
+
+        year = 2023
+        month = 3
+        day = 21
+
+        T = 2 * np.pi * (a0**1.5) / (mu**0.5)
+
+        return h0, e0, RA0, i0, w0, TA0, year, month, day, T
 
     def _j0(self, y, m, d):
         """
@@ -162,7 +281,7 @@ class SPIS:
         :return: .
         :rtype None
         """
-        pass
+        return 367 * y - int(7 * (y + int((m + 9) / 12)) / 4) + int(275 * m / 9) + d + 1721013.5
 
     def _kepler_e(self, e, M):
         """
@@ -176,7 +295,19 @@ class SPIS:
         :return: .
         :rtype: None
         """
-        pass
+        error = 1e-8
+
+        if M < math.pi:
+            E = M + e / 2
+        else:
+            E = M - e / 2
+
+        ratio = 1
+        while abs(ratio) > error:
+            ratio = (E - e * math.sin(E) - M) / (1 - e * math.cos(E))
+            E = E - ratio
+
+        return E
 
     def _sv_from_coe(self, h, e, RA, i, w, TA, it, mu):
         """
@@ -208,7 +339,17 @@ class SPIS:
         :return: .
         :rtype None
         """
-        pass
+        # From the book Orbital Mechanics: For Engineering Students; Howard Curtis
+        r_x = (h**2/mu) * (1/(1 + e*np.cos(TA))) * (np.cos(TA)*np.array([[1],[0],[0]]) + np.sin(TA)*np.array([[0],[1],[0]])) # Equation 3
+        R3_RA = np.array([[np.cos(RA), np.sin(RA), 0],[-np.sin(RA), np.cos(RA), 0],[0, 0, 1]])
+        R1_i = np.array([[1, 0, 0],[0, np.cos(i), np.sin(i)],[0, -np.sin(i), np.cos(i)]])
+        R3_w = np.array([[np.cos(w), np.sin(w), 0],[-np.sin(w), np.cos(w), 0],[0, 0, 1]])
+        Q = np.dot(R3_w, np.dot(R1_i, R3_RA)).T # Equation 2
+        r = np.dot(Q, r_x) # Equation 1
+        #...Convert r and v into row vectors:
+        state_r = r.T
+
+        return state_r, Q
 
     def _irradiance_field(self, N_X, pos, r_sun, it, RE):
         """
@@ -231,7 +372,16 @@ class SPIS:
         :return: .
         :rtype: None
         """
-        pass
+        F = np.zeros(6)
+
+        for j in range(6):
+            F[j] = np.dot(N_X[j,:], r_sun) / np.linalg.norm(r_sun)
+            if F[j] < 0:
+                F[j] = 0
+            else:
+                F[j] = F[j]
+
+        return F
 
     def _solar_position(self, d, m, y):
         """
@@ -248,7 +398,43 @@ class SPIS:
         :return: .
         :rtype: 
         """
-        pass
+        # Compute Julian day
+        jd = self._j0(y, m, d)
+
+        # Astronomical unit (km):
+        AU = 149597870.691
+
+        # Julian days since J2000:
+        n = jd - 2451545
+
+        # Julian centuries since J2000:
+        cy = n / 36525
+
+        # Mean anomaly (deg):
+        M = 357.528 + 0.9856003 * n
+        M = M % 360
+
+        # Mean longitude (deg):
+        L = 280.460 + 0.98564736 * n
+        L = L % 360
+
+        # Apparent ecliptic longitude (deg):
+        lamda = L + 1.915 * math.sin(math.radians(M)) + 0.020 * math.sin(2 * math.radians(M))
+        lamda = lamda % 360
+
+        # Obliquity of the ecliptic (deg):
+        eps = 23.439 - 0.0000004 * n
+
+        # Unit vector from earth to sun:
+        u = [math.cos(math.radians(lamda)), math.sin(math.radians(lamda)) * math.cos(math.radians(eps)), math.sin(math.radians(lamda)) * math.sin(math.radians(eps))]
+
+        # Distance from earth to sun (km):
+        rS = (1.00014 - 0.01671 * math.cos(math.radians(M)) - 0.000140 * math.cos(2 * math.radians(M))) * AU
+
+        # Geocentric position vector (km):
+        r_S = [i * rS for i in u]
+
+        return r_S
 
     def _ta_from_time(self, t, e, T, TA0):
         """
@@ -268,4 +454,8 @@ class SPIS:
         :return: .
         :rtype: None
         """
-        pass
+        M = 2 * np.pi * t / T
+        E = self._kepler_e(e, M)
+        TA = 2 * np.arctan(((1 + e) / (1 - e))**0.5 * np.tan(E / 2)) + TA0
+
+        return TA
