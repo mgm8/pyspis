@@ -51,7 +51,28 @@ The documentation pages can be built with Sphinx by running the following comman
 
 ## Usage Example
 
-> TODO
+```python
+from pyspis import SPIS
+import matplotlib.pyplot as plt
+
+plt.rcParams['text.usetex'] = True
+
+x = SPIS(1367, 0.295, 0.01005)
+
+time, power, power_total = x.compute_orbit(10)
+
+print("Average power:", x.get_average_power(), "W")
+print("Peak power:", x.get_peak_power(), "W")
+print("Average power (sunlight):", x.get_average_power_sunlight(), "W")
+
+fig, ax = plt.subplots()
+ax.plot(time, power[:, 0], time, power[:, 1], time, power[:, 2], time, power[:, 3], time, power[:, 4], time, power[:, 5], time, power_total)
+ax.legend([r'$X_{+}$', r'$X_{-}$', r'$Y_{+}$', r'$Y_{-}$', r'$Z_{+}$', r'$Z_{-}$', 'Total'])
+ax.set_xlabel("Time [s]")
+ax.set_ylabel("Power [W]")
+plt.savefig('test.jpg', bbox_inches='tight', dpi=600, transparent=True)
+plt.show()
+```
 
 ## License
 
