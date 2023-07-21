@@ -24,20 +24,35 @@
 import math
 
 import numpy as np
-import matplotlib.pyplot as plt
+
+_PYSPIS_MU              = 398600    # Gravitational parameter (km^3/s^2)
+_PYSPIS_EARTH_RADIUS_KM = 6378      # Earth radius in kilometers
 
 class SPIS:
     """
     PySPIS main class.
     """
 
-    def __init__(self):
+    def __init__(self, G=0, n=0, A=0):
         """
         Class constructor.
+
+        :param G: Solar irradiance in Watts per square meter.
+        :type G: float
+
+        :param n: Cell efficiency (index).
+        :type n: float
+
+        :param A: Solar cell area in square meter.
+        :type A: float
 
         :return: None.
         :rtype: None
         """
+        self.set_solar_irradiance(G)
+        self.set_solar_cell_efficiency(n)
+        self.set_solar_panel_area(A)
+
         # Conversion factors
         self._rad = np.pi / 180 # Degrees to radians
 
@@ -50,22 +65,63 @@ class SPIS:
         """
         return 'Satellite Input Power Simulation'
 
-    def compute(self, G, n, A, ts):
+    def set_orbit_from_tle_file(self, filename):
         """
-        General procedure to obtain the instances' power input
-        
+        :param filename: .
+        :type filename: string
+
+        :return: .
+        :rtype: None
+        """
+        pass
+
+    def set_orbit_from_tle_string(self, tle_str):
+        """
+        :param tle_str: .
+        :type tle_str: string
+
+        :return:
+        :rtype: None
+        """
+        pass
+
+    def set_solar_irradiance(self, G):
+        """
+        :param G: .
+        :type G: integer
+
+        :return:
+        :rtype: None
+        """
+        self._G = G
+
+    def set_solar_cell_efficiency(self, n):
+        """
+        :param n: .
+        :type n: integer
+
+        :return:
+        :rtype: None
+        """
+        self._n = n
+
+    def set_solar_panel_area(self, A):
+        """
+        :param A: .
+        :type A: integer
+
+        :return:
+        :rtype: None
+        """
+        self._A = A
+
+    def compute_orbit(self, ts=10):
+        """
+        General procedure to obtain the instances' power input in a single orbit
+
         This function receives as inputs the solar irradiance (G), solar cell efficiency (n), and solar cell area (A), as well as a time step (ts).
 
-        :param G: Solar irradiance in Watts per square meter.
-        :type G: float
-
-        :param n: Cell efficiency (index).
-        :type n: float
-
-        :param A: Solar cell area in square meter.
-        :type A: float
-
-        :param ts: Timestep in seconds
+        :param ts: Timestep in seconds.
         :type ts: int
 
         :return: Generated power in Watts.
@@ -75,12 +131,8 @@ class SPIS:
         it = 0  # counter
         t0 = 0  # initial time [s]
 
-        # Constants:
-        mu = 398600  # Gravitational parameter (km^3/s^2)
-        RE = 6378  # Earth radius (km)
-
         # Read TLE & further arguments (angles in degrees)
-        h, e, RA, i, w, TA0, year, month, day, T = self._input_orbit(mu, self._rad)
+        h, e, RA, i, w, TA0, year, month, day, T = self._input_orbit(_PYSPIS_MU, self._rad)
 
         # Compute the position of the sun r_sun at a given day
         r_sun = self._solar_position(year, month, day)
@@ -102,36 +154,54 @@ class SPIS:
             TA = self._ta_from_time(time[it - 1], e, T, TA0)
 
             # position of the satellite - Equation 1, 2, 3
-            state_r, Q = self._sv_from_coe(h, e, RA, i, w, TA, it, mu)
+            state_r, Q = self._sv_from_coe(h, e, RA, i, w, TA, it, _PYSPIS_MU)
             pos = np.vstack([pos, state_r])
 
             # eclipse of the earth - Equation 5
-            csi = self._eclipse(pos, it, r_sun, RE)
+            csi = self._eclipse(pos, it, r_sun, _PYSPIS_EARTH_RADIUS_KM)
 
             # attitude of the satellite - Equation 6, 7, 8, 9
             N_X = self._attitude(h, e, RA, i, w, TA, it, Q, T, r_sun, time[it - 1])
 
             # view factor - Equation 10
-            F = self._irradiance_field(N_X, pos, r_sun, it, RE)
+            F = self._irradiance_field(N_X, pos, r_sun, it)
 
             # power generation - Equation 11
-            P_k = n * G * A * F * csi
+            P_k = self._n * self._G * self._A * F * csi
             P.append(P_k)
 
             t0 = time[it - 1]  # used in the loop
 
         # Post processing
-        Power = np.array(P).reshape(it, 6)
-        Power_total = np.sum(Power, axis=1)
+        self._Power = np.array(P).reshape(it, 6)
+        self._Power_total = np.sum(self._Power, axis=1)
 
-        # Plot
-        fig, ax = plt.subplots()
-        ax.plot(time, Power[:, 0], time, Power[:, 1], time, Power[:, 2], time, Power[:, 3], time, Power[:, 4], time, Power[:, 5], time, Power_total)
-        ax.legend(['X_{+}', 'X_{-}', 'Y_{+}', 'Y_{-}', 'Z_{+}', 'Z_{-}', 'Total'])
-        ax.set_xlabel("Time [s]")
-        ax.set_ylabel("Power [W]")
-        #plt.savefig("test.png")
-        plt.show()
+        return time, self._Power, self._Power_total
+
+    def get_average_power(self):
+        """
+        :return:
+        :rtype: TODO
+        """
+        return np.average(self._Power_total)
+
+    def get_peak_power(self):
+        """
+        :return:
+        :rtype: TODO
+        """
+        return max(self._Power_total)
+
+    def get_average_power_sunlight(self):
+        """
+        :return:
+        :rtype: TODO
+        """
+        buf = list()
+        for i in self._Power_total:
+            if i > 0:
+                buf.append(i)
+        return np.average(buf)
 
     def _attitude(self, h, e, RA, i, w, TA, it, Q, T, r_sun, t):
         """
@@ -196,7 +266,7 @@ class SPIS:
 
         return N_X
 
-    def _eclipse(self, pos, it, r_sun, RE):
+    def _eclipse(self, pos, it, r_sun, re):
         """
 
         :param pos:
@@ -208,8 +278,8 @@ class SPIS:
         :param r_sun:
         :type r_sun:
 
-        :param RE:
-        :type RE:
+        :param re: Earth radius in kilometers
+        :type re: int
 
         :return: .
         :rtype:
@@ -221,7 +291,7 @@ class SPIS:
         theta = np.arccos(np.dot(pos[it], r_sun) / rsat / rsun) * 180 / np.pi
 
         # Angle between the satellite position vector and the radial to the point of tangency with the earth of a line from the satellite:
-        theta_sat = np.arccos(RE / rsat) * 180 / np.pi
+        theta_sat = np.arccos(re / rsat) * 180 / np.pi
 
         # Angle between the sun position vector and the radial to the point of tangency with the earth of a line from the sun:
         theta_sun = 90
@@ -236,8 +306,8 @@ class SPIS:
     def _input_orbit(self, mu, rad):
         """
 
-        :param mu:
-        :type mu:
+        :param mu: Gravitational parameter (km^3/s^2)
+        :type mu: int
 
         :param rad:
         :type rad:
@@ -351,7 +421,7 @@ class SPIS:
 
         return state_r, Q
 
-    def _irradiance_field(self, N_X, pos, r_sun, it, RE):
+    def _irradiance_field(self, N_X, pos, r_sun, it):
         """
 
         :param N_X:
@@ -365,9 +435,6 @@ class SPIS:
 
         :param it:
         :type it:
-
-        :param RE:
-        :type RE:
 
         :return: .
         :rtype: None
