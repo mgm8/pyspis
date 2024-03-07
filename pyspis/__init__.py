@@ -21,4 +21,5 @@
 #
 
 
+from pyspis.pyspis import SPIS
 from pyspis.version import __version__
